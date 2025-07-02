@@ -1,14 +1,17 @@
 import { useQuery } from "@tanstack/react-query";
 
 export function useAuth() {
+  const token = localStorage.getItem('token');
+  
   const { data: user, isLoading } = useQuery({
-    queryKey: ["/api/auth/user"],
+    queryKey: ["/api/user"],
     retry: false,
+    enabled: !!token,
   });
 
   return {
     user,
     isLoading,
-    isAuthenticated: !!user,
+    isAuthenticated: !!user && !!token,
   };
 }

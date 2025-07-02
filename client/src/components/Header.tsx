@@ -14,7 +14,8 @@ export default function Header() {
   const { user } = useAuth();
 
   const handleLogout = () => {
-    window.location.href = "/api/logout";
+    localStorage.removeItem('token');
+    window.location.href = "/";
   };
 
   const getInitials = (firstName?: string, lastName?: string) => {

@@ -1,63 +1,63 @@
-import {
-  pgTable,
-  text,
-  varchar,
-  timestamp,
-  jsonb,
-  index,
-  serial,
-  integer,
-} from "drizzle-orm/pg-core";
-import { createInsertSchema } from "drizzle-zod";
 import { z } from "zod";
 
-// Session storage table.
-// (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
-export const sessions = pgTable(
-  "sessions",
-  {
-    sid: varchar("sid").primaryKey(),
-    sess: jsonb("sess").notNull(),
-    expire: timestamp("expire").notNull(),
-  },
-  (table) => [index("IDX_session_expire").on(table.expire)],
-);
+// User types for MongoDB compatibility
+export interface User {
+  _id?: string;
+  id?: string;
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+}
 
-// User storage table.
-// (IMPORTANT) This table is mandatory for Replit Auth, don't drop it.
-export const users = pgTable("users", {
-  id: varchar("id").primaryKey().notNull(),
-  email: varchar("email").unique(),
-  firstName: varchar("first_name"),
-  lastName: varchar("last_name"),
-  profileImageUrl: varchar("profile_image_url"),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
+export interface RegisterUser {
+  email: string;
+  password: string;
+  firstName?: string;
+  lastName?: string;
+}
+
+export interface LoginUser {
+  email: string;
+  password: string;
+}
+
+// Task types for MongoDB compatibility
+export interface Task {
+  _id?: string;
+  id?: string;
+  title: string;
+  description?: string;
+  status: 'todo' | 'inprogress' | 'done';
+  userId: string;
+  createdAt?: Date;
+  updatedAt?: Date;
+  completedAt?: Date;
+}
+
+// Zod schemas for validation
+export const registerUserSchema = z.object({
+  email: z.string().email("Invalid email format"),
+  password: z.string().min(6, "Password must be at least 6 characters"),
+  firstName: z.string().optional(),
+  lastName: z.string().optional(),
 });
 
-// Tasks table
-export const tasks = pgTable("tasks", {
-  id: serial("id").primaryKey(),
-  title: text("title").notNull(),
-  description: text("description"),
-  status: varchar("status", { length: 20 }).notNull().default("todo"), // todo, inprogress, done
-  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
-  createdAt: timestamp("created_at").defaultNow(),
-  updatedAt: timestamp("updated_at").defaultNow(),
-  completedAt: timestamp("completed_at"),
+export const loginUserSchema = z.object({
+  email: z.string().email("Invalid email format"),
+  password: z.string().min(1, "Password is required"),
 });
 
-export const insertTaskSchema = createInsertSchema(tasks).omit({
-  id: true,
-  createdAt: true,
-  updatedAt: true,
-  completedAt: true,
+export const insertTaskSchema = z.object({
+  title: z.string().min(1, "Title is required").max(255, "Title must be less than 255 characters"),
+  description: z.string().optional(),
+  status: z.enum(["todo", "inprogress", "done"]).default("todo"),
+  userId: z.string(),
 });
 
-export const updateTaskSchema = insertTaskSchema.partial();
+export const updateTaskSchema = insertTaskSchema.partial().omit({ userId: true });
 
-export type UpsertUser = typeof users.$inferInsert;
-export type User = typeof users.$inferSelect;
+export type UpsertUser = RegisterUser;
 export type InsertTask = z.infer<typeof insertTaskSchema>;
 export type UpdateTask = z.infer<typeof updateTaskSchema>;
-export type Task = typeof tasks.$inferSelect;
