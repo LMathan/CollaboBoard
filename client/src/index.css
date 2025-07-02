@@ -3,30 +3,30 @@
 @tailwind utilities;
 
 :root {
-  --background: hsl(248, 50%, 96%);
-  --foreground: hsl(220, 14%, 16%);
+  --background: hsl(0, 0%, 100%);
+  --foreground: hsl(0, 0%, 0%);
   --muted: hsl(210, 40%, 98%);
-  --muted-foreground: hsl(215, 16%, 47%);
+  --muted-foreground: hsl(0, 0%, 20%);
   --popover: hsl(0, 0%, 100%);
-  --popover-foreground: hsl(220, 14%, 16%);
+  --popover-foreground: hsl(0, 0%, 0%);
   --card: hsl(0, 0%, 100%);
-  --card-foreground: hsl(220, 14%, 16%);
+  --card-foreground: hsl(0, 0%, 0%);
   --border: hsl(220, 13%, 91%);
   --input: hsl(220, 13%, 91%);
   --primary: hsl(221, 83%, 53%);
-  --primary-foreground: hsl(210, 40%, 98%);
+  --primary-foreground: hsl(0, 0%, 100%);
   --secondary: hsl(210, 40%, 98%);
-  --secondary-foreground: hsl(222, 84%, 5%);
+  --secondary-foreground: hsl(0, 0%, 0%);
   --accent: hsl(142, 76%, 36%);
-  --accent-foreground: hsl(355, 7%, 97%);
+  --accent-foreground: hsl(0, 0%, 100%);
   --destructive: hsl(0, 84%, 60%);
-  --destructive-foreground: hsl(210, 40%, 98%);
+  --destructive-foreground: hsl(0, 0%, 100%);
   --ring: hsl(221, 83%, 53%);
   --radius: 0.5rem;
   
   /* Custom colors for CollaboBoard */
-  --textPrimary: hsl(220, 14%, 16%);
-  --textSecondary: hsl(215, 16%, 47%);
+  --textPrimary: hsl(0, 0%, 0%);
+  --textSecondary: hsl(0, 0%, 30%);
 }
 
 .dark {
@@ -68,15 +68,56 @@
 
 /* Custom utility classes */
 .text-textPrimary {
-  color: var(--textPrimary);
+  color: var(--textPrimary) !important;
 }
 
 .text-textSecondary {
-  color: var(--textSecondary);
+  color: var(--textSecondary) !important;
 }
 
 .bg-background {
   background-color: var(--background);
+}
+
+/* Ensure text visibility */
+.text-foreground {
+  color: var(--foreground) !important;
+}
+
+.text-card-foreground {
+  color: var(--card-foreground) !important;
+}
+
+.text-popover-foreground {
+  color: var(--popover-foreground) !important;
+}
+
+/* Force visible text on all elements */
+* {
+  color: var(--foreground) !important;
+}
+
+body, html {
+  color: var(--foreground) !important;
+}
+
+h1, h2, h3, h4, h5, h6, p, span, div, label, button, input, textarea, select {
+  color: var(--foreground) !important;
+}
+
+/* Specific overrides for components */
+.card, .card * {
+  color: var(--card-foreground) !important;
+}
+
+/* Ensure all UI components have visible text */
+[class*="text-"], [class*="Text"] {
+  color: var(--foreground) !important;
+}
+
+/* Override any transparent or invisible text */
+.text-transparent, .text-white {
+  color: var(--foreground) !important;
 }
 
 /* Task card hover effects */
