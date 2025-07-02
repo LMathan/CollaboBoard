@@ -34,6 +34,7 @@ export interface Task {
   createdAt?: Date;
   updatedAt?: Date;
   completedAt?: Date;
+  lastEdited?: Date;
 }
 
 // Zod schemas for validation
@@ -53,7 +54,7 @@ export const insertTaskSchema = z.object({
   title: z.string().min(1, "Title is required").max(255, "Title must be less than 255 characters"),
   description: z.string().optional(),
   status: z.enum(["todo", "inprogress", "done"]).default("todo"),
-  userId: z.string(),
+  userId: z.string().optional(),
 });
 
 export const updateTaskSchema = insertTaskSchema.partial().omit({ userId: true });

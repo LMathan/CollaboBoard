@@ -11,6 +11,7 @@ import {
   type RegisterUser,
   type LoginUser,
 } from "@shared/schema";
+import { Types } from 'mongoose';
 
 // Interface for storage operations
 export interface IStorage {
@@ -19,12 +20,12 @@ export interface IStorage {
   loginUser(credentials: LoginUser): Promise<{ user: User; token: string }>;
   getUserById(id: string): Promise<User | undefined>;
   getUserByEmail(email: string): Promise<User | undefined>;
-  
+
   // Task operations
   getTasks(userId: string): Promise<Task[]>;
   getTask(id: string, userId: string): Promise<Task | undefined>;
   createTask(task: InsertTask): Promise<Task>;
-  updateTask(id: string, userId: string, updates: UpdateTask): Promise<Task | undefined>;
+  updateTask(id: string, userId: string, updates: UpdateTask, lastEditedTimestamp?: string): Promise<Task | undefined>;
   deleteTask(id: string, userId: string): Promise<boolean>;
 }
 
@@ -60,6 +61,7 @@ export class MongoStorage implements IStorage {
       createdAt: task.createdAt,
       updatedAt: task.updatedAt,
       completedAt: task.completedAt,
+      lastEdited: task.lastEdited,
     };
   }
 
@@ -80,7 +82,7 @@ export class MongoStorage implements IStorage {
 
     const savedUser = await newUser.save();
     const token = this.generateToken(savedUser._id.toString());
-    
+
     return {
       user: this.formatUser(savedUser),
       token
@@ -99,7 +101,7 @@ export class MongoStorage implements IStorage {
     }
 
     const token = this.generateToken(user._id.toString());
-    
+
     return {
       user: this.formatUser(user),
       token
@@ -119,36 +121,169 @@ export class MongoStorage implements IStorage {
   // Task operations
   async getTasks(userId: string): Promise<Task[]> {
     const tasks = await TaskModel.find({ userId }).sort({ createdAt: -1 });
-    return tasks.map(task => this.formatTask(task));
+    return tasks.map(task => {
+      const formattedTask = this.formatTask(task);
+      return {
+        id: formattedTask.id,
+        _id: formattedTask._id,
+        title: formattedTask.title,
+        description: formattedTask.description,
+        status: formattedTask.status,
+        userId: formattedTask.userId,
+        createdAt: formattedTask.createdAt,
+        updatedAt: formattedTask.updatedAt,
+        completedAt: formattedTask.completedAt,
+        lastEdited: formattedTask.lastEdited
+      };
+    });
   }
 
   async getTask(id: string, userId: string): Promise<Task | undefined> {
     const task = await TaskModel.findOne({ _id: id, userId });
-    return task ? this.formatTask(task) : undefined;
+    if (!task) {
+      return undefined;
+    }
+
+    const formattedTask = this.formatTask(task);
+    return {
+      id: formattedTask.id,
+      _id: formattedTask._id,
+      title: formattedTask.title,
+      description: formattedTask.description,
+      status: formattedTask.status,
+      userId: formattedTask.userId,
+      createdAt: formattedTask.createdAt,
+      updatedAt: formattedTask.updatedAt,
+      completedAt: formattedTask.completedAt,
+      lastEdited: formattedTask.lastEdited
+    };
   }
 
   async createTask(taskData: InsertTask): Promise<Task> {
-    const newTask = new TaskModel(taskData);
-    const savedTask = await newTask.save();
-    return this.formatTask(savedTask);
+    try {
+      // Smart Assign: Find user with fewest active tasks
+      let assignedUserId = taskData.userId;
+
+      if (!taskData.userId) {
+        const users = await UserModel.find({});
+        let minTaskCount = Infinity;
+
+        for (const user of users) {
+          const activeTaskCount = await TaskModel.countDocuments({
+            userId: user._id.toString(),
+            status: { $in: ['todo', 'inprogress'] }
+          });
+
+          if (activeTaskCount < minTaskCount) {
+            minTaskCount = activeTaskCount;
+            assignedUserId = user._id.toString();
+          }
+        }
+      }
+
+      const task = new TaskModel({
+        ...taskData,
+        userId: assignedUserId,
+        _id: new Types.ObjectId().toString(),
+        lastEdited: new Date(),
+      });
+
+      await task.save();
+
+      return {
+        id: task._id.toString(),
+        _id: task._id.toString(),
+        title: task.title,
+        description: task.description,
+        status: task.status,
+        userId: task.userId,
+        createdAt: task.createdAt,
+        updatedAt: task.updatedAt,
+        completedAt: task.completedAt,
+        lastEdited: task.lastEdited,
+      };
+    } catch (error) {
+      console.error('Error creating task:', error);
+      throw error;
+    }
   }
 
-  async updateTask(id: string, userId: string, updates: UpdateTask): Promise<Task | undefined> {
-    const updateData: any = { ...updates };
-    
-    if (updates.status === 'done' && !updates.completedAt) {
-      updateData.completedAt = new Date();
-    } else if (updates.status !== 'done') {
-      updateData.completedAt = null;
+  async updateTask(id: string, userId: string, updates: UpdateTask, lastEditedTimestamp?: string): Promise<Task | undefined> {
+    try {
+      const task = await TaskModel.findOne({
+        _id: id,
+        userId: userId
+      });
+
+      if (!task) {
+        return undefined;
+      }
+
+      // Conflict detection
+      if (lastEditedTimestamp) {
+        const clientLastEdited = new Date(lastEditedTimestamp);
+        const serverLastEdited = task.lastEdited;
+
+        if (serverLastEdited > clientLastEdited) {
+          // Conflict detected - return both versions
+          throw {
+            type: 'CONFLICT',
+            serverVersion: {
+              id: task._id.toString(),
+              _id: task._id.toString(),
+              title: task.title,
+              description: task.description,
+              status: task.status,
+              userId: task.userId,
+              createdAt: task.createdAt,
+              updatedAt: task.updatedAt,
+              completedAt: task.completedAt,
+              lastEdited: task.lastEdited
+            },
+            clientVersion: updates
+          };
+        }
+      }
+
+      const updateData: any = { ...updates };
+
+      // Update completedAt when status changes to 'done'
+      if (updates.status === 'done' && task.status !== 'done') {
+        updateData.completedAt = new Date();
+      } else if (updates.status !== 'done') {
+        updateData.completedAt = null;
+      }
+
+      updateData.lastEdited = new Date();
+
+      const updatedTask = await TaskModel.findOneAndUpdate(
+        { _id: id, userId },
+        updateData,
+        { new: true }
+      );
+
+      if (!updatedTask) {
+        return undefined;
+      }
+
+      const formattedTask = this.formatTask(updatedTask);
+      return {
+        id: formattedTask.id,
+        _id: formattedTask._id,
+        title: formattedTask.title,
+        description: formattedTask.description,
+        status: formattedTask.status,
+        userId: formattedTask.userId,
+        createdAt: formattedTask.createdAt,
+        updatedAt: formattedTask.updatedAt,
+        completedAt: formattedTask.completedAt,
+        lastEdited: formattedTask.lastEdited
+      };
+
+    } catch (error) {
+      console.error('Error updating task:', error);
+      throw error;
     }
-
-    const updatedTask = await TaskModel.findOneAndUpdate(
-      { _id: id, userId },
-      updateData,
-      { new: true }
-    );
-
-    return updatedTask ? this.formatTask(updatedTask) : undefined;
   }
 
   async deleteTask(id: string, userId: string): Promise<boolean> {

@@ -9,6 +9,7 @@ export interface ITask extends Document {
   createdAt: Date;
   updatedAt: Date;
   completedAt?: Date;
+  lastEdited: Date;
 }
 
 const taskSchema = new Schema<ITask>({
@@ -35,6 +36,10 @@ const taskSchema = new Schema<ITask>({
   completedAt: {
     type: Date,
     default: null,
+  },
+  lastEdited: {
+    type: Date,
+    default: Date.now,
   },
 }, {
   timestamps: true,

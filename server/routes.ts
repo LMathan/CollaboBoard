@@ -83,10 +83,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/tasks", authenticateToken, async (req: any, res) => {
     try {
       const userId = req.user.id || req.user._id;
-      const taskData = insertTaskSchema.parse({
-        ...req.body,
-        userId,
-      });
+      const smartAssign = req.body.smartAssign || false;
+      
+      // Prepare task data for validation
+      const taskDataForValidation = {
+        title: req.body.title,
+        description: req.body.description,
+        status: req.body.status || "todo",
+        // Only include userId if not using smart assign
+        ...(smartAssign ? {} : { userId: userId })
+      };
+      
+      const taskData = insertTaskSchema.parse(taskDataForValidation);
 
       const task = await storage.createTask(taskData);
       res.status(201).json(task);
@@ -105,7 +113,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const taskId = req.params.id;
 
       const updates = updateTaskSchema.parse(req.body);
-      const task = await storage.updateTask(taskId, userId, updates);
+      const lastEditedTimestamp = req.headers['x-last-edited'];
+      
+      const task = await storage.updateTask(taskId, userId, updates, lastEditedTimestamp);
       
       if (!task) {
         return res.status(404).json({ message: "Task not found" });
@@ -113,6 +123,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json(task);
     } catch (error) {
+      if (error.type === 'CONFLICT') {
+        return res.status(409).json({
+          message: "Conflict detected",
+          type: "CONFLICT",
+          serverVersion: error.serverVersion,
+          clientVersion: error.clientVersion
+        });
+      }
       if (error instanceof z.ZodError) {
         return res.status(400).json({ message: "Invalid task data", errors: error.errors });
       }

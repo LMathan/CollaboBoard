@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useMutation } from "@tanstack/react-query";
@@ -31,6 +31,7 @@ import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Button } from "@/components/ui/button";
 import type { Task } from "@shared/schema";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface TaskModalProps {
   isOpen: boolean;
@@ -39,14 +40,19 @@ interface TaskModalProps {
 }
 
 const taskFormSchema = z.object({
-  title: z.string().min(1, "Title is required").max(255, "Title must be less than 255 characters"),
+  title: z.string().min(1, "Title is required").max(255),
   description: z.string().optional(),
-  status: z.enum(["todo", "inprogress", "done"]),
+  status: z.enum(["todo", "inprogress", "done"]).default("todo"),
+  smartAssign: z.boolean().default(false),
 });
 
 type TaskFormData = z.infer<typeof taskFormSchema>;
 
 export default function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
+  const [conflictData, setConflictData] = useState<{
+    serverVersion: Task;
+    clientVersion: Partial<Task>;
+  } | null>(null);
   const { toast } = useToast();
   const isEditing = !!task;
 
@@ -56,6 +62,7 @@ export default function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
       title: "",
       description: "",
       status: "todo",
+      smartAssign: false,
     },
   });
 
@@ -65,12 +72,14 @@ export default function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
         title: task.title,
         description: task.description || "",
         status: task.status as "todo" | "inprogress" | "done",
+        smartAssign: false,
       });
     } else {
       form.reset({
         title: "",
         description: "",
         status: "todo",
+        smartAssign: false,
       });
     }
   }, [task, form]);
@@ -159,7 +168,7 @@ export default function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
             {isEditing ? "Edit Task" : "Add New Task"}
           </DialogTitle>
         </DialogHeader>
-        
+
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
             <FormField
@@ -175,7 +184,7 @@ export default function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
                 </FormItem>
               )}
             />
-            
+
             <FormField
               control={form.control}
               name="description"
@@ -194,16 +203,16 @@ export default function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
                 </FormItem>
               )}
             />
-            
+
             <FormField
               control={form.control}
               name="status"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Status</FormLabel>
+                  <FormLabel className="text-foreground">Status</FormLabel>
                   <Select onValueChange={field.onChange} defaultValue={field.value}>
                     <FormControl>
-                      <SelectTrigger>
+                      <SelectTrigger className="text-foreground">
                         <SelectValue placeholder="Select status" />
                       </SelectTrigger>
                     </FormControl>
@@ -217,7 +226,32 @@ export default function TaskModal({ isOpen, onClose, task }: TaskModalProps) {
                 </FormItem>
               )}
             />
-            
+
+            {!isEditing && (
+              <FormField
+                control={form.control}
+                name="smartAssign"
+                render={({ field }) => (
+                  <FormItem className="flex flex-row items-start space-x-3 space-y-0">
+                    <FormControl>
+                      <Checkbox
+                        checked={field.value}
+                        onCheckedChange={field.onChange}
+                      />
+                    </FormControl>
+                    <div className="space-y-1 leading-none">
+                      <FormLabel className="text-foreground">
+                        Smart Assign
+                      </FormLabel>
+                      <p className="text-sm text-secondary">
+                        Automatically assign to user with fewest active tasks
+                      </p>
+                    </div>
+                  </FormItem>
+                )}
+              />
+            )}
+
             <div className="flex space-x-4 pt-4">
               <Button 
                 type="button" 
