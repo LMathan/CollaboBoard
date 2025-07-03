@@ -13,7 +13,7 @@ export async function apiRequest(
   data?: unknown | undefined,
 ): Promise<Response> {
   const headers: Record<string, string> = data ? { "Content-Type": "application/json" } : {};
-  
+
   // Add JWT token to requests if available
   const token = localStorage.getItem('token');
   if (token) {
@@ -38,7 +38,7 @@ export const getQueryFn: <T>(options: {
   ({ on401: unauthorizedBehavior }) =>
   async ({ queryKey }) => {
     const headers: Record<string, string> = {};
-    
+
     // Add JWT token to requests if available
     const token = localStorage.getItem('token');
     if (token) {
