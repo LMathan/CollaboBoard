@@ -7,11 +7,17 @@ async function throwIfResNotOk(res: Response) {
   }
 }
 
-export async function apiRequest(
+// Get API base URL from environment or use production backend
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'https://collaboboard.onrender.com';
+
+export const apiRequest = async (
   method: string,
   url: string,
   data?: unknown | undefined,
-): Promise<Response> {
+): Promise<Response> => {
+  // Prepend API base URL if it's a relative URL
+  const fullUrl = url.startsWith('/') ? `${API_BASE_URL}${url}` : url;
+
   const headers: Record<string, string> = data ? { "Content-Type": "application/json" } : {};
 
   // Add JWT token to requests if available
@@ -20,7 +26,7 @@ export async function apiRequest(
     headers.Authorization = `Bearer ${token}`;
   }
 
-  const res = await fetch(url, {
+  const res = await fetch(fullUrl, {
     method,
     headers,
     body: data ? JSON.stringify(data) : undefined,
@@ -29,7 +35,7 @@ export async function apiRequest(
 
   await throwIfResNotOk(res);
   return res;
-}
+};
 
 type UnauthorizedBehavior = "returnNull" | "throw";
 export const getQueryFn: <T>(options: {
@@ -72,3 +78,30 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+export const mutate = async (
+  url: string,
+  method: "POST" | "PUT" | "DELETE" | "PATCH",
+  data?: unknown | undefined,
+): Promise<Response> => {
+  // Prepend API base URL if it's a relative URL
+  const fullUrl = url.startsWith('/') ? `${API_BASE_URL}${url}` : url;
+
+  const headers: Record<string, string> = data ? { "Content-Type": "application/json" } : {};
+
+  // Add JWT token to requests if available
+  const token = localStorage.getItem('token');
+  if (token) {
+    headers.Authorization = `Bearer ${token}`;
+  }
+
+  const res = await fetch(fullUrl, {
+    method,
+    headers,
+    body: data ? JSON.stringify(data) : undefined,
+    credentials: "include",
+  });
+
+  await throwIfResNotOk(res);
+  return res;
+};
